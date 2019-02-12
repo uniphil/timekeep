@@ -126,7 +126,7 @@ fn index(_request: &Request, history: &Vec<Day>) -> Response<Cursor<Vec<u8>>> {
 }
 
 fn detail(_request: &Request, history: &Vec<Day>, hostname: &str) -> Response<Cursor<Vec<u8>>> {
-    let mut out = format!("<!doctype html><pre>recent memories of {}:\n", hostname);
+    let mut out = format!("<!doctype html><pre>recent memories of <a href=\"https://{0}/\" target=\"_blank\">{0} ⎘</a>:\n", hostname);
     let mut info = history
         .iter()
         .filter_map(|day| day.hosts.get(hostname).map(|h| (day.date, h)))
@@ -150,7 +150,8 @@ fn detail(_request: &Request, history: &Vec<Day>, hostname: &str) -> Response<Cu
     paths.sort_unstable_by(|(_, &a), (_, &b)| b.cmp(&a));
     out.push_str(&format!("\nimpressions in the last 30 days by path:\n"));
     for (path, path_count) in paths {
-        out.push_str(&format!("{}\t{}\n", path_count, path));
+        out.push_str(&format!("{}\t<a href=\"https://{2}{1}\" target=\"_blank\">{1} ⎘</a>\n",
+            path_count, path, hostname));
     }
     out.push_str("</pre>");
     Response::from_string(out)
