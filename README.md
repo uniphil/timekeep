@@ -10,6 +10,7 @@ stuff:
 - visitor logging is the least important, most expendable data.
 - don't add features. especially if they won't give clearly actionable information. also because redeploying wipes the counts lol.
 - don't save anything for more than 30 days. let it go.
+- no cookies!
 
 todo:
 
