@@ -8,12 +8,11 @@ fn main() {
         Ok(p) => p.parse::<u16>().unwrap(),
         Err(..) => 8000,
     };
+    let referer_header = HeaderField::from_bytes("Referer").unwrap();
 
     let server = Server::http(("0.0.0.0", port)).unwrap();
 
     let mut by_parts: HashMap<String, HashMap<String, u32>> = HashMap::new();
-
-    let referer_header = HeaderField::from_bytes("Referer").unwrap();
 
     for request in server.incoming_requests() {
         let referer = request.headers()
@@ -22,26 +21,15 @@ fn main() {
             .map(|header| Url::parse(header.value.as_str()));
         let url = match referer {
             Some(r) => match r {
-                Err(e) => {
-                    println!("bad referer: {:?}", e);
-                    continue;
-                },
+                Err(_) => continue,
                 Ok(d) => d,
             },
-            None => {
-                println!("no referrer");
-                continue;
-            }
+            None => continue,
         };
-
         let host = match url.host_str() {
             Some(h) => h,
-            None => {
-                println!("could not parse host :(");
-                continue;
-            }
+            None => continue,
         };
-
         let path = url.path();
 
         let counter = by_parts
