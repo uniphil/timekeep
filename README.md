@@ -28,4 +28,6 @@ other notes:
 
 - why not just use your server logs? if you have them, you don't need this. this is for eg., github pages where you don't have them.
 - why is the data public? why not.
-- can i use your hosted instance? sure. it's at (or will be soon) https://time-keep.ca, just add `<img src="https://timekeep.ca/count.gif" />` before your closing `</body>` tag on any page you want to count. i might cut you off if you use up all the bandwidth.
+- can i use your hosted instance? sure. it's currently at https://timekeep-server.herokuapp.com/, so just add `<img src="https://timekeep-server.herokuapp.com/count.gif" style="position: absolute; left:-9999em" alt="visitor counter" aria-hidden="true" />` before your closing `</body>` tag on any page you want to count.
+    - i might cut you off if you use up all the bandwidth. maybe i'll change my mind and shut it down. should be easy to host your own.
+    - i don't think my websites get enough traffic to actually keep the heroku dyno alive, so it probably won't work super well for ya. or me. maybe your traffic will help :)
