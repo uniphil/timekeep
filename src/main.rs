@@ -102,7 +102,7 @@ fn count(request: &Request, mut history: &mut Vec<Day>) -> Response<Cursor<Vec<u
 }
 
 fn index(_request: &Request, history: &Vec<Day>) -> Response<Cursor<Vec<u8>>> {
-    let mut out = "<!doctype html><pre>about some hosts:\ndate\t\tnew folks\ttotal visitors\n".to_string();
+    let mut out = "<!doctype html><pre>about some hosts:\ndate\tnew folks\ttotal visitors\n".to_string();
     let mut hosts: HashMap<String, HashMap<&Date<Local>, (u32, u32)>> = HashMap::new();
     for day in history {
         let date = &day.date;
@@ -111,6 +111,8 @@ fn index(_request: &Request, history: &Vec<Day>) -> Response<Cursor<Vec<u8>>> {
             h.insert(date, (counts.new_visitors, counts.unique_visitors));
         }
     }
+    let mut hosts = hosts.iter().collect::<Vec<_>>();
+    hosts.sort_by_key(|&(h, _)| h);
     for (host, info) in hosts {
         out.push_str(&format!("\n<a href=\"/{0}\">{}</a>\n", host));
         for (date, (new_visitors, unique_visitors)) in info {
@@ -118,6 +120,7 @@ fn index(_request: &Request, history: &Vec<Day>) -> Response<Cursor<Vec<u8>>> {
                 date.format("%F"), new_visitors, unique_visitors));
         }
     }
+    out.push_str("</pre>");
     Response::from_string(out)
         .with_header(Header::from_bytes(&b"Content-Type"[..], &b"text/html"[..]).unwrap())
 }
@@ -149,6 +152,7 @@ fn detail(_request: &Request, history: &Vec<Day>, hostname: &str) -> Response<Cu
     for (path, path_count) in paths {
         out.push_str(&format!("{}\t{}\n", path_count, path));
     }
+    out.push_str("</pre>");
     Response::from_string(out)
         .with_header(Header::from_bytes(&b"Content-Type"[..], &b"text/html"[..]).unwrap())
 }
