@@ -3,9 +3,15 @@ use std::collections::HashMap;
 use std::io::Cursor;
 use std::net::IpAddr;
 use url::{Url};
-use tiny_http::{Server, Request, Response, HeaderField};
+use tiny_http::{Server, Request, Response, Header, HeaderField};
 use chrono::{Date, Local, Duration};
 use bloom::{ASMS, BloomFilter};
+
+static HELLO_PIXEL: [u8; 41] = [  // 💜
+   0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x01, 0x00, 0x01, 0x00, 0x80, 0x01, 0x00, 0xc4, 0x52, 0xc8,
+   0xff, 0xff, 0xff, 0x21, 0xfe, 0x02, 0x3c, 0x33, 0x00, 0x2c, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00,
+   0x01, 0x00, 0x00, 0x02, 0x02, 0x44, 0x01, 0x00, 0x3b,
+];
 
 
 struct Host {
@@ -48,9 +54,13 @@ fn cleanup(history: &mut Vec<Day>) {
 }
 
 fn count(request: &Request, mut history: &mut Vec<Day>) -> Response<Cursor<Vec<u8>>> {
+    let response = Response::from_data(HELLO_PIXEL.to_vec())
+        .with_header(Header::from_bytes(&b"Content-Type"[..], &b"image/gif"[..]).unwrap())
+        .with_header(Header::from_bytes(&b"Cache-Control"[..], &b"no-store, no-cache, must-revalidate, max-age=0"[..]).unwrap())
+        .with_header(Header::from_bytes(&b"Pragma"[..], &b"no-cache"[..]).unwrap());
     let (ip, hostname, path) = match trackable(&request) {
         Some(x) => x,
-        None => return Response::from_string("booo"),
+        None => return response.with_status_code(400),
     };
 
     let today_date = Local::today();
@@ -88,7 +98,7 @@ fn count(request: &Request, mut history: &mut Vec<Day>) -> Response<Cursor<Vec<u
 
     *host.paths.entry(path).or_insert(0) += 1;
 
-    Response::from_string("hello world")
+    response
 }
 
 fn index(_request: &Request, history: &Vec<Day>) -> Response<Cursor<Vec<u8>>> {
