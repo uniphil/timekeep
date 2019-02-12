@@ -1,1 +1,1 @@
-web: target/release/heroku-tiny-http-hello-world
+web: target/release/timekeep

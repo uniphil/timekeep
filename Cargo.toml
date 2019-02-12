@@ -1,7 +1,8 @@
 [package]
-name = "heroku-tiny-http-hello-world"
-version = "0.1.0"
-authors = ["Corey Farwell <coreyf@rwell.org>"]
+name = "timekeep"
+version = "0.0.1"
+edition = "2018"
+authors = ["phil <uniphil@gmail.com>"]
 
 [dependencies]
-tiny_http = "*"
+tiny_http = "0.6.2"

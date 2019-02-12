@@ -1,9 +1,5 @@
-extern crate tiny_http;
-
 use std::env;
-
-use tiny_http::{Response, ServerBuilder};
-
+use tiny_http::{Server, Response};
 
 fn main() {
     let port = match env::var("PORT") {
@@ -11,10 +7,16 @@ fn main() {
         Err(..) => 8000,
     };
 
-    let server = ServerBuilder::new().with_port(port).build().unwrap();
+    let server = Server::http(("0.0.0.0", port)).unwrap();
 
-    for req in server.incoming_requests() {
-        let response = Response::from_string("Hello world!");
-        req.respond(response);
+    for request in server.incoming_requests() {
+        println!("received request! method: {:?}, url: {:?}, headers: {:?}",
+            request.method(),
+            request.url(),
+            request.headers()
+        );
+
+        let response = Response::from_string("hello world");
+        request.respond(response).unwrap();
     }
 }
