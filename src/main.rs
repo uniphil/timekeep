@@ -114,8 +114,8 @@ fn index(_request: &Request, history: &Vec<Day>) -> Response<Cursor<Vec<u8>>> {
     for (host, info) in hosts {
         out.push_str(&format!("\n<a href=\"/{0}\">{}</a>\n", host));
         for (date, (new_visitors, unique_visitors)) in info {
-            out.push_str(&format!("{:?}\t{:?}\t{:?}\n",
-                date, new_visitors, unique_visitors));
+            out.push_str(&format!("{}\t{}\t{}\n",
+                date.format("%F"), new_visitors, unique_visitors));
         }
     }
     Response::from_string(out)
