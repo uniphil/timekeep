@@ -4,7 +4,7 @@ use std::io::Cursor;
 use std::net::IpAddr;
 use url::{Url};
 use tiny_http::{Server, Request, Response, Header, HeaderField};
-use chrono::{Date, Local, Duration};
+use chrono::{Date, DateTime, Local, Duration};
 use bloom::{ASMS, BloomFilter};
 
 static HELLO_PIXEL: [u8; 41] = [  // 💜
@@ -101,7 +101,7 @@ fn count(request: &Request, mut history: &mut Vec<Day>) -> Response<Cursor<Vec<u
     response
 }
 
-fn index(_request: &Request, history: &Vec<Day>) -> Response<Cursor<Vec<u8>>> {
+fn index(_request: &Request, history: &Vec<Day>, launch: &DateTime<Local>) -> Response<Cursor<Vec<u8>>> {
     let mut out = "<!doctype html><pre>about some hosts:\ndate\tnew folks\ttotal visitors\n".to_string();
     let mut hosts: HashMap<String, HashMap<&Date<Local>, (u32, u32)>> = HashMap::new();
     for day in history {
@@ -120,6 +120,7 @@ fn index(_request: &Request, history: &Vec<Day>) -> Response<Cursor<Vec<u8>>> {
                 date.format("%F"), new_visitors, unique_visitors));
         }
     }
+    out.push_str(&format!("\n\nlast restart: {}", launch));
     out.push_str("</pre>");
     Response::from_string(out)
         .with_header(Header::from_bytes(&b"Content-Type"[..], &b"text/html"[..]).unwrap())
@@ -165,11 +166,12 @@ fn main() {
     };
     let server = Server::http(("0.0.0.0", port)).unwrap();
     let mut history: Vec<Day> = Vec::new();
+    let launch = Local::now();
 
     for request in server.incoming_requests() {
         let response = match request.url() {
             "/count.gif" => count(&request, &mut history),
-            "/" => index(&request, &history),
+            "/" => index(&request, &history, &launch),
             hostname => detail(&request, &history, hostname.get(1..).unwrap()),
         };
         request.respond(response).unwrap();
