@@ -102,7 +102,7 @@ fn count(request: &Request, mut history: &mut Vec<Day>) -> Response<Cursor<Vec<u
 }
 
 fn index(_request: &Request, history: &Vec<Day>) -> Response<Cursor<Vec<u8>>> {
-    let mut out = "about some hosts:\ndate\t\tnew folks\ttotal visitors\n".to_string();
+    let mut out = "<!doctype html><pre>about some hosts:\ndate\t\tnew folks\ttotal visitors\n".to_string();
     let mut hosts: HashMap<String, HashMap<&Date<Local>, (u32, u32)>> = HashMap::new();
     for day in history {
         let date = &day.date;
@@ -112,17 +112,18 @@ fn index(_request: &Request, history: &Vec<Day>) -> Response<Cursor<Vec<u8>>> {
         }
     }
     for (host, info) in hosts {
-        out.push_str(&format!("\n{}\n", host));
+        out.push_str(&format!("\n<a href=\"/{0}\">{}</a>\n", host));
         for (date, (new_visitors, unique_visitors)) in info {
             out.push_str(&format!("{:?}\t{:?}\t{:?}\n",
                 date, new_visitors, unique_visitors));
         }
     }
     Response::from_string(out)
+        .with_header(Header::from_bytes(&b"Content-Type"[..], &b"text/html"[..]).unwrap())
 }
 
 fn detail(_request: &Request, history: &Vec<Day>, hostname: &str) -> Response<Cursor<Vec<u8>>> {
-    let mut out = format!("recent memories of {}:\n", hostname);
+    let mut out = format!("<!doctype html><pre>recent memories of {}:\n", hostname);
     let mut info = history
         .iter()
         .filter_map(|day| day.hosts.get(hostname).map(|h| (day.date, h)))
@@ -132,15 +133,15 @@ fn detail(_request: &Request, history: &Vec<Day>, hostname: &str) -> Response<Cu
         return Response::from_string("nothing for u");
     }
     let mut paths = HashMap::new();
-    out.push_str("date\t\timpressions\tuniques\tnew folks\n");
+    out.push_str("date\timpressions\tuniques\tnew folks\n");
     for (date, h) in info {
         let mut day_visits = 0;
         for (path, count) in &h.paths {
             *paths.entry(path).or_insert(0) += count;
             day_visits += count;
         }
-        out.push_str(&format!("{:?}\t{:?}\t{:?}\t{:?}\n",
-            date, day_visits, h.unique_visitors, h.new_visitors));
+        out.push_str(&format!("{}\t{}\t{}\t{}\n",
+            date.format("%F"), day_visits, h.unique_visitors, h.new_visitors));
     }
     let mut paths = paths.iter().collect::<Vec<_>>();
     paths.sort_unstable_by(|(_, &a), (_, &b)| b.cmp(&a));
@@ -149,6 +150,7 @@ fn detail(_request: &Request, history: &Vec<Day>, hostname: &str) -> Response<Cu
         out.push_str(&format!("{}\t{}\n", path_count, path));
     }
     Response::from_string(out)
+        .with_header(Header::from_bytes(&b"Content-Type"[..], &b"text/html"[..]).unwrap())
 }
 
 fn main() {
