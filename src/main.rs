@@ -1,17 +1,17 @@
 use std::env;
 use std::collections::HashMap;
-use std::collections::hash_map::DefaultHasher;
 use std::io::Cursor;
 use std::net::IpAddr;
 use url::{Url};
 use tiny_http::{Server, Request, Response, HeaderField};
 use chrono::{Date, Local, Duration};
-use cuckoofilter::CuckooFilter;
+use bloom::{ASMS, BloomFilter};
 
 
 struct Host {
     paths: HashMap<String, u32>,
-    visitors: CuckooFilter<DefaultHasher>,
+    visitors: BloomFilter,
+    unique_visitors: u32,
     new_visitors: u32,
 }
 
@@ -55,7 +55,7 @@ fn count(request: &Request, mut history: &mut Vec<Day>) -> Response<Cursor<Vec<u
 
     let today_date = Local::today();
 
-    let new_visitor = history
+    let seen_before = history
         .iter()
         .any(|day| day.hosts.get(&hostname)
             .map(|h| h.visitors.contains(&ip))
@@ -73,12 +73,16 @@ fn count(request: &Request, mut history: &mut Vec<Day>) -> Response<Cursor<Vec<u
 
     let mut host = today.hosts.entry(hostname).or_insert(Host {
         paths: HashMap::new(),
-        visitors: CuckooFilter::with_capacity(10000),
+        visitors: BloomFilter::with_rate(0.03, 10000),
+        unique_visitors: 0,
         new_visitors: 0,
     });
 
-    host.visitors.add(&ip);
-    if new_visitor {
+    let new_today = host.visitors.insert(&ip);
+    if new_today {
+        host.unique_visitors += 1;
+    }
+    if !seen_before {
         host.new_visitors += 1;
     }
 
@@ -88,18 +92,18 @@ fn count(request: &Request, mut history: &mut Vec<Day>) -> Response<Cursor<Vec<u
 }
 
 fn index(_request: &Request, history: &Vec<Day>) -> Response<Cursor<Vec<u8>>> {
-    let mut hosts: HashMap<String, HashMap<&Date<Local>, (u32, u64)>> = HashMap::new();
+    let mut hosts: HashMap<String, HashMap<&Date<Local>, (u32, u32)>> = HashMap::new();
     for day in history {
         let date = &day.date;
         for (host, counts) in &day.hosts {
             let h = hosts.entry(host.to_string()).or_insert(HashMap::new());
-            h.insert(date, (counts.new_visitors, counts.visitors.len()));
+            h.insert(date, (counts.new_visitors, counts.unique_visitors));
         }
     }
     for (host, info) in hosts {
         println!("{}", host);
-        for (date, (new_visitors, visitors)) in info {
-            println!("{:?} {:?} {:?}", date, new_visitors, visitors);
+        for (date, (new_visitors, unique_visitors)) in info {
+            println!("{:?} {:?} {:?}", date, new_visitors, unique_visitors);
         }
     }
     Response::from_string("heya")
