@@ -103,13 +103,38 @@ fn index(_request: &Request, history: &Vec<Day>) -> Response<Cursor<Vec<u8>>> {
     for (host, info) in hosts {
         println!("{}", host);
         for (date, (new_visitors, unique_visitors)) in info {
-            println!("{:?} {:?} {:?}", date, new_visitors, unique_visitors);
+            println!("{:?} new folks: {:?} total visitors: {:?}", date, new_visitors, unique_visitors);
         }
     }
     Response::from_string("heya")
 }
 
-fn hello(_request: &Request) -> Response<Cursor<Vec<u8>>> {
+fn detail(_request: &Request, history: &Vec<Day>, hostname: &str) -> Response<Cursor<Vec<u8>>> {
+    println!("all about {}:", hostname);
+    let mut info = history
+        .iter()
+        .filter_map(|day| day.hosts.get(hostname).map(|h| (day.date, h)))
+        .peekable();
+    if info.peek().is_none() {
+        println!("no records :/");
+        return Response::from_string("nothing for u");
+    }
+    let mut paths = HashMap::new();
+    for (date, h) in info {
+        let mut day_visits = 0;
+        for (path, count) in &h.paths {
+            *paths.entry(path).or_insert(0) += count;
+            day_visits += count;
+        }
+        println!("{:?} visits: {:?} uniques: {:?} new folks: {:?}", date,
+            day_visits, h.unique_visitors, h.new_visitors);
+    }
+    let mut paths = paths.iter().collect::<Vec<_>>();
+    paths.sort_unstable_by(|(_, &a), (_, &b)| b.cmp(&a));
+    println!("visits in the last 30 days by path:");
+    for (path, path_count) in paths {
+        println!("{}\t{}", path_count, path);
+    }
     Response::from_string("suuuuuup")
 }
 
@@ -122,11 +147,10 @@ fn main() {
     let mut history: Vec<Day> = Vec::new();
 
     for request in server.incoming_requests() {
-        println!("{:?}", request.url());
         let response = match request.url() {
             "/count.gif" => count(&request, &mut history),
             "/" => index(&request, &history),
-            _ => hello(&request),
+            hostname => detail(&request, &history, hostname.get(1..).unwrap()),
         };
         request.respond(response).unwrap();
     }
