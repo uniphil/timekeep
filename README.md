@@ -17,6 +17,7 @@ todo:
 - maybe collect stats on user agents => eventually just try to estimate how many visits are bots
 - consider not adding ips to the bloom if DNT=1
 - generate little svg graphs for timeseries
+- allow customizing timezone
 
 notes:
 
