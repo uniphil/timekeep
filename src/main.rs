@@ -4,7 +4,7 @@ use std::io::Cursor;
 use std::net::IpAddr;
 use url::{Url};
 use tiny_http::{Server, Request, Response, Header, HeaderField};
-use chrono::{Date, Local, Duration};
+use chrono::{Date, DateTime, Local, Duration};
 use bloom::{ASMS, BloomFilter};
 
 static HELLO_PIXEL: [u8; 41] = [  // 💜
@@ -101,8 +101,8 @@ fn count(request: &Request, mut history: &mut Vec<Day>) -> Response<Cursor<Vec<u
     response
 }
 
-fn index(_request: &Request, history: &Vec<Day>) -> Response<Cursor<Vec<u8>>> {
-    let mut out = "<!doctype html><pre>about some hosts:\ndate\t\tnew folks\ttotal visitors\n".to_string();
+fn index(_request: &Request, history: &Vec<Day>, launch: &DateTime<Local>) -> Response<Cursor<Vec<u8>>> {
+    let mut out = "<!doctype html><pre>about some hosts:\ndate\tnew folks\ttotal visitors\n".to_string();
     let mut hosts: HashMap<String, HashMap<&Date<Local>, (u32, u32)>> = HashMap::new();
     for day in history {
         let date = &day.date;
@@ -111,6 +111,8 @@ fn index(_request: &Request, history: &Vec<Day>) -> Response<Cursor<Vec<u8>>> {
             h.insert(date, (counts.new_visitors, counts.unique_visitors));
         }
     }
+    let mut hosts = hosts.iter().collect::<Vec<_>>();
+    hosts.sort_by_key(|&(h, _)| h);
     for (host, info) in hosts {
         out.push_str(&format!("\n<a href=\"/{0}\">{}</a>\n", host));
         for (date, (new_visitors, unique_visitors)) in info {
@@ -118,12 +120,14 @@ fn index(_request: &Request, history: &Vec<Day>) -> Response<Cursor<Vec<u8>>> {
                 date.format("%F"), new_visitors, unique_visitors));
         }
     }
+    out.push_str(&format!("\n\nlast restart: {}", launch));
+    out.push_str("</pre>");
     Response::from_string(out)
         .with_header(Header::from_bytes(&b"Content-Type"[..], &b"text/html"[..]).unwrap())
 }
 
 fn detail(_request: &Request, history: &Vec<Day>, hostname: &str) -> Response<Cursor<Vec<u8>>> {
-    let mut out = format!("<!doctype html><pre>recent memories of {}:\n", hostname);
+    let mut out = format!("<!doctype html><pre>recent memories of <a href=\"https://{0}/\" target=\"_blank\">{0} ⎘</a>:\n", hostname);
     let mut info = history
         .iter()
         .filter_map(|day| day.hosts.get(hostname).map(|h| (day.date, h)))
@@ -147,8 +151,10 @@ fn detail(_request: &Request, history: &Vec<Day>, hostname: &str) -> Response<Cu
     paths.sort_unstable_by(|(_, &a), (_, &b)| b.cmp(&a));
     out.push_str(&format!("\nimpressions in the last 30 days by path:\n"));
     for (path, path_count) in paths {
-        out.push_str(&format!("{}\t{}\n", path_count, path));
+        out.push_str(&format!("{}\t<a href=\"https://{2}{1}\" target=\"_blank\">{1} ⎘</a>\n",
+            path_count, path, hostname));
     }
+    out.push_str("</pre>");
     Response::from_string(out)
         .with_header(Header::from_bytes(&b"Content-Type"[..], &b"text/html"[..]).unwrap())
 }
@@ -160,11 +166,12 @@ fn main() {
     };
     let server = Server::http(("0.0.0.0", port)).unwrap();
     let mut history: Vec<Day> = Vec::new();
+    let launch = Local::now();
 
     for request in server.incoming_requests() {
         let response = match request.url() {
             "/count.gif" => count(&request, &mut history),
-            "/" => index(&request, &history),
+            "/" => index(&request, &history, &launch),
             hostname => detail(&request, &history, hostname.get(1..).unwrap()),
         };
         request.respond(response).unwrap();
