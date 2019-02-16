@@ -1,3 +1,8 @@
+extern crate url;
+extern crate tiny_http;
+extern crate chrono;
+extern crate bloom;
+
 use std::env;
 use std::collections::HashMap;
 use std::io::Cursor;
@@ -67,21 +72,20 @@ fn count(request: &Request, mut history: &mut Vec<Day>) -> Response<Cursor<Vec<u
 
     let seen_before = history
         .iter()
-        .any(|day| day.hosts.get(&hostname)
+        .any(|day| day.hosts
+            .get(&hostname)
             .map(|h| h.visitors.contains(&ip))
             .unwrap_or(false));
 
-    let today = match history.iter_mut().find(|day| day.date == today_date) {
-        Some(d) => d,
-        None => {
-            cleanup(&mut history);
-            let day = Day{ date: today_date, hosts: HashMap::new() };
-            history.push(day);
-            history.iter_mut().find(|day| day.date == Local::today()).unwrap()
-        }
-    };
+    if history.iter().find(|day| day.date == today_date).is_none() {
+        cleanup(&mut history);
+        let day = Day{ date: today_date, hosts: HashMap::new() };
+        history.push(day);
+    }
+    let today = history.iter_mut().find(|day| day.date == Local::today()).unwrap();
 
-    let mut host = today.hosts.entry(hostname).or_insert(Host {
+
+    let host = today.hosts.entry(hostname).or_insert(Host {
         paths: HashMap::new(),
         visitors: BloomFilter::with_rate(0.03, 10000),
         unique_visitors: 0,
@@ -114,11 +118,17 @@ fn index(_request: &Request, history: &Vec<Day>, launch: &DateTime<Local>) -> Re
     let mut hosts = hosts.iter().collect::<Vec<_>>();
     hosts.sort_by_key(|&(h, _)| h);
     for (host, info) in hosts {
-        out.push_str(&format!("\n<a href=\"/{0}\">{}</a>\n", host));
+        let mut total_new = 0;
+        let mut total_unique = 0;
+        let mut timeline = "".to_string();
         for (date, (new_visitors, unique_visitors)) in info {
-            out.push_str(&format!("{}\t{}\t{}\n",
+            total_new += new_visitors;
+            total_unique += unique_visitors;
+            timeline.push_str(&format!("{}\t{}\t{}\n",
                 date.format("%F"), new_visitors, unique_visitors));
         }
+        out.push_str(&format!("\n<a href=\"/{0}\">{}</a>\t{}\t{}\n", host, total_new, total_unique));
+        out.push_str(&timeline);
     }
     out.push_str(&format!("\n\nlast restart: {}", launch));
     out.push_str("</pre>");

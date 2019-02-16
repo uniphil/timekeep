@@ -1,7 +1,7 @@
 [package]
 name = "timekeep"
 version = "0.0.1"
-edition = "2018"
+# edition = "2018"
 authors = ["phil <uniphil@gmail.com>"]
 
 [dependencies]
