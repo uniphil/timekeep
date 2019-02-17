@@ -32,7 +32,11 @@ struct Day {
 }
 
 fn trackable(request: &Request) -> Option<(IpAddr, String, String)> {
-    let addr = request.remote_addr().ip();
+    let addr: IpAddr = request.headers()
+        .iter()
+        .find(|header| header.field == HeaderField::from_bytes("X-Forwarded-For").unwrap())
+        .and_then(|header| header.value.as_str().parse().ok())
+        .unwrap_or(request.remote_addr().ip());
     let referer = request.headers()
         .iter()
         .find(|header| header.field == HeaderField::from_bytes("Referer").unwrap())
