@@ -5,7 +5,7 @@ website visitor logging that's nice to your visitors
 stuff:
 
 - respect people
-- don't break stuff
+- don't break things
 - don't track people on an individual level. maybe don't use this at all.
 - visitor logging is the least important, most expendable data.
 - don't add features. especially if they won't give clearly actionable information. also because redeploying wipes the counts lol.
@@ -14,10 +14,10 @@ stuff:
 
 todo:
 
-- maybe collect stats on user agents => eventually just try to estimate how many visits are bots
-- consider not adding ips to the bloom if DNT=1
-- generate little svg graphs for timeseries
-- allow customizing timezone
+- [ ] don't add ips to the bloom filters if DNT=1
+- [ ] add dnt-policy.txt
+- [ ] generate little svg graphs for timeseries
+- [ ] allow customizing timezone
 
 notes:
 
@@ -31,11 +31,11 @@ notes:
 other notes:
 
 - why not just use your server logs? if you have them, you don't need this. this is for eg., github pages where you don't have them.
-- why is the data public? why not.
-- can i use your hosted instance? sure. it's currently at https://timekeep-server.herokuapp.com/, so just add `<img src="https://timekeep-server.herokuapp.com/count.gif" style="position: absolute; left:-9999em" alt="visitor counter" aria-hidden="true" />` before your closing `</body>` tag on any page you want to count.
-    - i might cut you off if you use up all the bandwidth. maybe i'll change my mind and shut it down. should be easy to host your own.
-    - i don't think my websites get enough traffic to actually keep the heroku dyno alive, so it probably won't work super well for ya. or me. maybe your traffic will help :)
+- why is the data public? why not. if you use nginx or another reverse proxy, you could add basic auth there.
+- how to use: add `<img src="https://<DOMAIN THIS RUNS AT>/count.gif" style="position: absolute; left:-9999em" alt="visitor counter" aria-hidden="true" />` before your closing `</body>` tag on any page you want to count.
+- running it at a subdomain of the site your counting is probably a good idea.
+- you can add the counter on as many domains as you like, but privacy tools like Privacy Badger may start auto-blocking for visitors.
+- heroku doesn't work for this, since no service is allowed to survive more than 24 hours at a stretch, and timekeep stores all data in memory.
 
 even more notes:
-
-- the numbers I get don't agree with cloudflare at all, which is the only analytics I had before. clouflare shows much, much higher counts. my current best guess as to why is that most of that was bots, and the bots aren't loading `count.gif`. every browser I've checked so far does actually load it, so i think the numbers are representative of human visitors.
+- cloudflare used to report ~2000 unique visitors each month for one website I run. The numbers I get from timekeep on the same site are more like ~100 uniques per month. I believe the difference is bots.
