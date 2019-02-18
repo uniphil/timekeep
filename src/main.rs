@@ -1,23 +1,23 @@
-extern crate url;
-extern crate tiny_http;
-extern crate chrono;
 extern crate bloom;
+extern crate chrono;
+extern crate tiny_http;
+extern crate url;
 
-use std::env;
+use bloom::{BloomFilter, ASMS};
+use chrono::{Date, DateTime, Duration, Local};
 use std::collections::HashMap;
+use std::env;
 use std::io::Cursor;
 use std::net::IpAddr;
-use url::{Url};
-use tiny_http::{Server, Request, Response, Header, HeaderField};
-use chrono::{Date, DateTime, Local, Duration};
-use bloom::{ASMS, BloomFilter};
+use tiny_http::{Header, HeaderField, Request, Response, Server};
+use url::Url;
 
-static HELLO_PIXEL: [u8; 41] = [  // 💜
-   0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x01, 0x00, 0x01, 0x00, 0x80, 0x01, 0x00, 0xc4, 0x52, 0xc8,
-   0xff, 0xff, 0xff, 0x21, 0xfe, 0x02, 0x3c, 0x33, 0x00, 0x2c, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00,
-   0x01, 0x00, 0x00, 0x02, 0x02, 0x44, 0x01, 0x00, 0x3b,
+static HELLO_PIXEL: [u8; 41] = [
+    // 💜
+    0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x01, 0x00, 0x01, 0x00, 0x80, 0x01, 0x00, 0xc4, 0x52, 0xc8,
+    0xff, 0xff, 0xff, 0x21, 0xfe, 0x02, 0x3c, 0x33, 0x00, 0x2c, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00,
+    0x01, 0x00, 0x00, 0x02, 0x02, 0x44, 0x01, 0x00, 0x3b,
 ];
-
 
 struct Host {
     paths: HashMap<String, u32>,
@@ -32,12 +32,14 @@ struct Day {
 }
 
 fn trackable(request: &Request) -> Option<(IpAddr, String, String)> {
-    let addr: IpAddr = request.headers()
+    let addr: IpAddr = request
+        .headers()
         .iter()
         .find(|header| header.field == HeaderField::from_bytes("X-Forwarded-For").unwrap())
         .and_then(|header| header.value.as_str().parse().ok())
         .unwrap_or(request.remote_addr().ip());
-    let referer = request.headers()
+    let referer = request
+        .headers()
         .iter()
         .find(|header| header.field == HeaderField::from_bytes("Referer").unwrap())
         .map(|header| Url::parse(header.value.as_str()));
@@ -65,7 +67,13 @@ fn cleanup(history: &mut Vec<Day>) {
 fn count(request: &Request, mut history: &mut Vec<Day>) -> Response<Cursor<Vec<u8>>> {
     let response = Response::from_data(HELLO_PIXEL.to_vec())
         .with_header(Header::from_bytes(&b"Content-Type"[..], &b"image/gif"[..]).unwrap())
-        .with_header(Header::from_bytes(&b"Cache-Control"[..], &b"no-store, no-cache, must-revalidate, max-age=0"[..]).unwrap())
+        .with_header(
+            Header::from_bytes(
+                &b"Cache-Control"[..],
+                &b"no-store, no-cache, must-revalidate, max-age=0"[..],
+            )
+            .unwrap(),
+        )
         .with_header(Header::from_bytes(&b"Pragma"[..], &b"no-cache"[..]).unwrap());
     let (ip, hostname, path) = match trackable(&request) {
         Some(x) => x,
@@ -74,20 +82,25 @@ fn count(request: &Request, mut history: &mut Vec<Day>) -> Response<Cursor<Vec<u
 
     let today_date = Local::today();
 
-    let seen_before = history
-        .iter()
-        .any(|day| day.hosts
+    let seen_before = history.iter().any(|day| {
+        day.hosts
             .get(&hostname)
             .map(|h| h.visitors.contains(&ip))
-            .unwrap_or(false));
+            .unwrap_or(false)
+    });
 
     if history.iter().find(|day| day.date == today_date).is_none() {
         cleanup(&mut history);
-        let day = Day{ date: today_date, hosts: HashMap::new() };
+        let day = Day {
+            date: today_date,
+            hosts: HashMap::new(),
+        };
         history.push(day);
     }
-    let today = history.iter_mut().find(|day| day.date == Local::today()).unwrap();
-
+    let today = history
+        .iter_mut()
+        .find(|day| day.date == Local::today())
+        .unwrap();
 
     let host = today.hosts.entry(hostname).or_insert(Host {
         paths: HashMap::new(),
@@ -109,8 +122,13 @@ fn count(request: &Request, mut history: &mut Vec<Day>) -> Response<Cursor<Vec<u
     response
 }
 
-fn index(_request: &Request, history: &Vec<Day>, launch: &DateTime<Local>) -> Response<Cursor<Vec<u8>>> {
-    let mut out = "<!doctype html><pre>about some hosts:\ndate\tnew folks\ttotal visitors\n".to_string();
+fn index(
+    _request: &Request,
+    history: &Vec<Day>,
+    launch: &DateTime<Local>,
+) -> Response<Cursor<Vec<u8>>> {
+    let mut out =
+        "<!doctype html><pre>about some hosts:\ndate\tnew folks\ttotal visitors\n".to_string();
     let mut hosts: HashMap<String, HashMap<&Date<Local>, (u32, u32)>> = HashMap::new();
     for day in history {
         let date = &day.date;
@@ -128,10 +146,17 @@ fn index(_request: &Request, history: &Vec<Day>, launch: &DateTime<Local>) -> Re
         for (date, (new_visitors, unique_visitors)) in info {
             total_new += new_visitors;
             total_unique += unique_visitors;
-            timeline.push_str(&format!("{}\t{}\t{}\n",
-                date.format("%F"), new_visitors, unique_visitors));
+            timeline.push_str(&format!(
+                "{}\t{}\t{}\n",
+                date.format("%F"),
+                new_visitors,
+                unique_visitors
+            ));
         }
-        out.push_str(&format!("\n<a href=\"/{0}\">{}</a>\t{}\t{}\n", host, total_new, total_unique));
+        out.push_str(&format!(
+            "\n<a href=\"/{0}\">{}</a>\t{}\t{}\n",
+            host, total_new, total_unique
+        ));
         out.push_str(&timeline);
     }
     out.push_str(&format!("\n\nlast restart: {}", launch));
@@ -158,15 +183,22 @@ fn detail(_request: &Request, history: &Vec<Day>, hostname: &str) -> Response<Cu
             *paths.entry(path).or_insert(0) += count;
             day_visits += count;
         }
-        out.push_str(&format!("{}\t{}\t{}\t{}\n",
-            date.format("%F"), day_visits, h.unique_visitors, h.new_visitors));
+        out.push_str(&format!(
+            "{}\t{}\t{}\t{}\n",
+            date.format("%F"),
+            day_visits,
+            h.unique_visitors,
+            h.new_visitors
+        ));
     }
     let mut paths = paths.iter().collect::<Vec<_>>();
     paths.sort_unstable_by(|(_, &a), (_, &b)| b.cmp(&a));
     out.push_str(&format!("\nimpressions in the last 30 days by path:\n"));
     for (path, path_count) in paths {
-        out.push_str(&format!("{}\t<a href=\"https://{2}{1}\" target=\"_blank\">{1} ⎘</a>\n",
-            path_count, path, hostname));
+        out.push_str(&format!(
+            "{}\t<a href=\"https://{2}{1}\" target=\"_blank\">{1} ⎘</a>\n",
+            path_count, path, hostname
+        ));
     }
     out.push_str("</pre>");
     Response::from_string(out)
