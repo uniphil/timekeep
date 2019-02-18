@@ -128,7 +128,7 @@ fn index(
     launch: &DateTime<Local>,
 ) -> Response<Cursor<Vec<u8>>> {
     let mut out =
-        "<!doctype html><pre>about some hosts:\ndate\tnew folks\ttotal visitors\n".to_string();
+        "<!doctype html><pre>about some hosts:\ndate\tnew folks\ttotal visits\n".to_string();
     let mut hosts: HashMap<String, HashMap<&Date<Local>, (u32, u32)>> = HashMap::new();
     for day in history {
         let date = &day.date;
