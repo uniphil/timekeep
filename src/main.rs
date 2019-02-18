@@ -37,7 +37,7 @@ fn trackable(request: &Request) -> Option<(IpAddr, String, String)> {
         .iter()
         .find(|header| header.field == HeaderField::from_bytes("X-Forwarded-For").unwrap())
         .and_then(|header| header.value.as_str().parse().ok())
-        .unwrap_or(request.remote_addr().ip());
+        .unwrap_or_else(|| request.remote_addr().ip());
     let referer = request
         .headers()
         .iter()
@@ -55,7 +55,7 @@ fn trackable(request: &Request) -> Option<(IpAddr, String, String)> {
         None => return None,
     };
     let path = url.path();
-    return Some((addr, hostname.to_string(), path.to_string()));
+    Some((addr, hostname.to_string(), path.to_string()))
 }
 
 fn cleanup(history: &mut Vec<Day>) {
@@ -124,7 +124,7 @@ fn count(request: &Request, mut history: &mut Vec<Day>) -> Response<Cursor<Vec<u
 
 fn index(
     _request: &Request,
-    history: &Vec<Day>,
+    history: &[Day],
     launch: &DateTime<Local>,
 ) -> Response<Cursor<Vec<u8>>> {
     let mut out =
@@ -133,7 +133,7 @@ fn index(
     for day in history {
         let date = &day.date;
         for (host, counts) in &day.hosts {
-            let h = hosts.entry(host.to_string()).or_insert(HashMap::new());
+            let h = hosts.entry(host.to_string()).or_insert_with(HashMap::new);
             h.insert(date, (counts.new_visitors, counts.unique_visitors));
         }
     }
@@ -165,14 +165,14 @@ fn index(
         .with_header(Header::from_bytes(&b"Content-Type"[..], &b"text/html"[..]).unwrap())
 }
 
-fn detail(_request: &Request, history: &Vec<Day>, hostname: &str) -> Response<Cursor<Vec<u8>>> {
+fn detail(_request: &Request, history: &[Day], hostname: &str) -> Response<Cursor<Vec<u8>>> {
     let mut out = format!("<!doctype html><pre>recent memories of <a href=\"https://{0}/\" target=\"_blank\">{0} ⎘</a>:\n", hostname);
     let mut info = history
         .iter()
         .filter_map(|day| day.hosts.get(hostname).map(|h| (day.date, h)))
         .peekable();
     if info.peek().is_none() {
-        out.push_str(&format!("no records :/\n"));
+        out.push_str("no records :/\n");
         return Response::from_string("nothing for u");
     }
     let mut paths = HashMap::new();
@@ -193,7 +193,7 @@ fn detail(_request: &Request, history: &Vec<Day>, hostname: &str) -> Response<Cu
     }
     let mut paths = paths.iter().collect::<Vec<_>>();
     paths.sort_unstable_by(|(_, &a), (_, &b)| b.cmp(&a));
-    out.push_str(&format!("\nimpressions in the last 30 days by path:\n"));
+    out.push_str("\nimpressions in the last 30 days by path:\n");
     for (path, path_count) in paths {
         out.push_str(&format!(
             "{}\t<a href=\"https://{2}{1}\" target=\"_blank\">{1} ⎘</a>\n",
