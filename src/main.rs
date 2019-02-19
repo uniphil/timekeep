@@ -85,8 +85,7 @@ fn count(request: &Request, mut history: &mut Vec<Day>) -> Response<Cursor<Vec<u
     let seen_before = history.iter().any(|day| {
         day.hosts
             .get(&hostname)
-            .map(|h| h.visitors.contains(&ip))
-            .unwrap_or(false)
+            .map_or(false, |h| h.visitors.contains(&ip))
     });
 
     if history.iter().find(|day| day.date == today_date).is_none() {
@@ -143,6 +142,11 @@ fn index(
         let mut total_new = 0;
         let mut total_unique = 0;
         let mut timeline = "".to_string();
+
+        let mut info = info.iter().collect::<Vec<_>>();
+        info.sort_by_key(|&(date, _)| date);
+        info.reverse();
+
         for (date, (new_visitors, unique_visitors)) in info {
             total_new += new_visitors;
             total_unique += unique_visitors;
@@ -173,9 +177,12 @@ fn detail(_request: &Request, history: &[Day], hostname: &str) -> Response<Curso
         .peekable();
     if info.peek().is_none() {
         out.push_str("no records :/\n");
-        return Response::from_string("nothing for u");
+        return Response::from_string(out);
     }
     let mut paths = HashMap::new();
+    let mut info = info.collect::<Vec<_>>();
+    info.sort_by_key(|&(d, _)| d);
+    info.reverse();
     out.push_str("date\timpressions\tuniques\tnew folks\n");
     for (date, h) in info {
         let mut day_visits = 0;
@@ -192,7 +199,8 @@ fn detail(_request: &Request, history: &[Day], hostname: &str) -> Response<Curso
         ));
     }
     let mut paths = paths.iter().collect::<Vec<_>>();
-    paths.sort_unstable_by(|(_, &a), (_, &b)| b.cmp(&a));
+    paths.sort_by_key(|&(path, count)| (count, path));
+    paths.reverse();
     out.push_str("\nimpressions in the last 30 days by path:\n");
     for (path, path_count) in paths {
         out.push_str(&format!(
