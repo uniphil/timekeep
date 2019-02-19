@@ -24,6 +24,7 @@ struct Host {
     visitors: BloomFilter,
     unique_visitors: u32,
     new_visitors: u32,
+    dnt_impressions: u32,
 }
 
 struct Day {
@@ -31,13 +32,25 @@ struct Day {
     hosts: HashMap<String, Host>,
 }
 
-fn trackable(request: &Request) -> Option<(IpAddr, String, String)> {
-    let addr: IpAddr = request
+fn trackable(request: &Request) -> Option<(Option<IpAddr>, String, String)> {
+    let dnt = request
         .headers()
         .iter()
-        .find(|header| header.field == HeaderField::from_bytes("X-Forwarded-For").unwrap())
-        .and_then(|header| header.value.as_str().parse().ok())
-        .unwrap_or_else(|| request.remote_addr().ip());
+        .find(|h| h.field == HeaderField::from_bytes("DNT").unwrap())
+        .map(|h| h.value.as_str() == "1")
+        .unwrap_or(false);
+    let addr = if dnt {
+        None
+    } else {
+        Some(
+            request
+                .headers()
+                .iter()
+                .find(|header| header.field == HeaderField::from_bytes("X-Forwarded-For").unwrap())
+                .and_then(|header| header.value.as_str().parse().ok())
+                .unwrap_or_else(|| request.remote_addr().ip()),
+        )
+    };
     let referer = request
         .headers()
         .iter()
@@ -82,10 +95,12 @@ fn count(request: &Request, mut history: &mut Vec<Day>) -> Response<Cursor<Vec<u
 
     let today_date = Local::today();
 
-    let seen_before = history.iter().any(|day| {
-        day.hosts
-            .get(&hostname)
-            .map_or(false, |h| h.visitors.contains(&ip))
+    let seen_before = ip.map_or(false, |addr| {
+        history.iter().any(|day| {
+            day.hosts
+                .get(&hostname)
+                .map_or(false, |h| h.visitors.contains(&addr))
+        })
     });
 
     if history.iter().find(|day| day.date == today_date).is_none() {
@@ -106,14 +121,19 @@ fn count(request: &Request, mut history: &mut Vec<Day>) -> Response<Cursor<Vec<u
         visitors: BloomFilter::with_rate(0.03, 10000),
         unique_visitors: 0,
         new_visitors: 0,
+        dnt_impressions: 0,
     });
 
-    let new_today = host.visitors.insert(&ip);
-    if new_today {
-        host.unique_visitors += 1;
-    }
-    if !seen_before {
-        host.new_visitors += 1;
+    if let Some(addr) = ip {
+        let new_today = host.visitors.insert(&addr);
+        if new_today {
+            host.unique_visitors += 1;
+        }
+        if !seen_before {
+            host.new_visitors += 1;
+        }
+    } else {
+        host.dnt_impressions += 1;
     }
 
     *host.paths.entry(path).or_insert(0) += 1;
@@ -127,13 +147,22 @@ fn index(
     launch: &DateTime<Local>,
 ) -> Response<Cursor<Vec<u8>>> {
     let mut out =
-        "<!doctype html><pre>about some hosts:\ndate\tnew folks\ttotal visits\n".to_string();
-    let mut hosts: HashMap<String, HashMap<&Date<Local>, (u32, u32)>> = HashMap::new();
+        "<!doctype html><pre>about some hosts:\ndate\tnew folks\tdaily visits\tdnt impressions\n"
+            .to_string();
+    type Detail<'a> = HashMap<&'a Date<Local>, (u32, u32, u32)>;
+    let mut hosts: HashMap<String, Detail> = HashMap::new();
     for day in history {
         let date = &day.date;
         for (host, counts) in &day.hosts {
             let h = hosts.entry(host.to_string()).or_insert_with(HashMap::new);
-            h.insert(date, (counts.new_visitors, counts.unique_visitors));
+            h.insert(
+                date,
+                (
+                    counts.new_visitors,
+                    counts.unique_visitors,
+                    counts.dnt_impressions,
+                ),
+            );
         }
     }
     let mut hosts = hosts.iter().collect::<Vec<_>>();
@@ -141,25 +170,28 @@ fn index(
     for (host, info) in hosts {
         let mut total_new = 0;
         let mut total_unique = 0;
+        let mut total_dnt = 0;
         let mut timeline = "".to_string();
 
         let mut info = info.iter().collect::<Vec<_>>();
         info.sort_by_key(|&(date, _)| date);
         info.reverse();
 
-        for (date, (new_visitors, unique_visitors)) in info {
+        for (date, (new_visitors, unique_visitors, dnt_impressions)) in info {
             total_new += new_visitors;
             total_unique += unique_visitors;
+            total_dnt += dnt_impressions;
             timeline.push_str(&format!(
-                "{}\t{}\t{}\n",
+                "{}\t{}\t{}\t{}\n",
                 date.format("%F"),
                 new_visitors,
-                unique_visitors
+                unique_visitors,
+                dnt_impressions
             ));
         }
         out.push_str(&format!(
-            "\n<a href=\"/{0}\">{}</a>\t{}\t{}\n",
-            host, total_new, total_unique
+            "\n<a href=\"/{0}\">{}</a>\t{}\t{}\t{}\n",
+            host, total_new, total_unique, total_dnt
         ));
         out.push_str(&timeline);
     }
@@ -177,13 +209,14 @@ fn detail(_request: &Request, history: &[Day], hostname: &str) -> Response<Curso
         .peekable();
     if info.peek().is_none() {
         out.push_str("no records :/\n");
-        return Response::from_string(out);
+        return Response::from_string(out)
+            .with_header(Header::from_bytes(&b"Content-Type"[..], &b"text/html"[..]).unwrap());
     }
     let mut paths = HashMap::new();
     let mut info = info.collect::<Vec<_>>();
     info.sort_by_key(|&(d, _)| d);
     info.reverse();
-    out.push_str("date\timpressions\tuniques\tnew folks\n");
+    out.push_str("date\timpressions\tdnt\tvisitors\tnew folks\n");
     for (date, h) in info {
         let mut day_visits = 0;
         for (path, count) in &h.paths {
@@ -191,9 +224,10 @@ fn detail(_request: &Request, history: &[Day], hostname: &str) -> Response<Curso
             day_visits += count;
         }
         out.push_str(&format!(
-            "{}\t{}\t{}\t{}\n",
+            "{}\t{}\t{}\t{}\t{}\n",
             date.format("%F"),
             day_visits,
+            h.dnt_impressions,
             h.unique_visitors,
             h.new_visitors
         ));
