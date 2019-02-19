@@ -14,8 +14,8 @@ stuff:
 
 todo:
 
-- [ ] don't add ips to the bloom filters if DNT=1
-- [ ] add dnt-policy.txt
+- [x] don't add ips to the bloom filters if DNT=1
+- [x] add dnt-policy.txt
 - [ ] generate little svg graphs for timeseries
 - [ ] allow customizing timezone
 

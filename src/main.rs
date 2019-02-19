@@ -37,8 +37,7 @@ fn trackable(request: &Request) -> Option<(Option<IpAddr>, String, String)> {
         .headers()
         .iter()
         .find(|h| h.field == HeaderField::from_bytes("DNT").unwrap())
-        .map(|h| h.value.as_str() == "1")
-        .unwrap_or(false);
+        .map_or(false, |h| h.value.as_str() == "1");
     let addr = if dnt {
         None
     } else {
@@ -146,10 +145,10 @@ fn index(
     history: &[Day],
     launch: &DateTime<Local>,
 ) -> Response<Cursor<Vec<u8>>> {
+    type Detail<'a> = HashMap<&'a Date<Local>, (u32, u32, u32)>;
     let mut out =
         "<!doctype html><pre>about some hosts:\ndate\tnew folks\tdaily visits\tdnt impressions\n"
             .to_string();
-    type Detail<'a> = HashMap<&'a Date<Local>, (u32, u32, u32)>;
     let mut hosts: HashMap<String, Detail> = HashMap::new();
     for day in history {
         let date = &day.date;
@@ -247,11 +246,21 @@ fn detail(_request: &Request, history: &[Day], hostname: &str) -> Response<Curso
         .with_header(Header::from_bytes(&b"Content-Type"[..], &b"text/html"[..]).unwrap())
 }
 
+fn dnt_policy(dnt_compliant: bool) -> Response<Cursor<Vec<u8>>> {
+    if dnt_compliant {
+        let policy = include_str!("dnt-policy-1.0.txt");
+        Response::from_string(policy)
+    } else {
+        Response::from_string("".to_string()).with_status_code(404)
+    }
+}
+
 fn main() {
     let port = match env::var("PORT") {
         Ok(p) => p.parse::<u16>().unwrap(),
         Err(..) => 8000,
     };
+    let dnt_compliant = env::var("DNT_COMPLIANT").ok().map_or(false, |c| c == "1");
     let server = Server::http(("0.0.0.0", port)).unwrap();
     let mut history: Vec<Day> = Vec::new();
     let launch = Local::now();
@@ -260,6 +269,7 @@ fn main() {
         let response = match request.url() {
             "/count.gif" => count(&request, &mut history),
             "/" => index(&request, &history, &launch),
+            "/.well-known/dnt-policy.txt" => dnt_policy(dnt_compliant),
             hostname => detail(&request, &history, hostname.get(1..).unwrap()),
         };
         request.respond(response).unwrap();
