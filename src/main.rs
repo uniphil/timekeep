@@ -274,4 +274,5 @@ fn main() {
         };
         request.respond(response).unwrap();
     }
+    println!("got to end of requests apparently. bye!");
 }
