@@ -38,6 +38,7 @@ fn trackable(request: &Request) -> Option<(Option<IpAddr>, String, String)> {
         .iter()
         .find(|h| h.field == HeaderField::from_bytes("DNT").unwrap())
         .map_or(false, |h| h.value.as_str() == "1");
+    println!("dnt: {}", dnt);
     let addr = if dnt {
         None
     } else {
@@ -50,11 +51,13 @@ fn trackable(request: &Request) -> Option<(Option<IpAddr>, String, String)> {
                 .unwrap_or_else(|| request.remote_addr().ip()),
         )
     };
+    println!("addr: {:?}", addr);
     let referer = request
         .headers()
         .iter()
         .find(|header| header.field == HeaderField::from_bytes("Referer").unwrap())
         .map(|header| Url::parse(header.value.as_str()));
+    println!("ref: {:?}", referer);
     let url = match referer {
         Some(r) => match r {
             Err(_) => return None,
@@ -266,12 +269,14 @@ fn main() {
     let launch = Local::now();
 
     for request in server.incoming_requests() {
+        println!("-> {}", &request.url());
         let response = match request.url() {
             "/count.gif" => count(&request, &mut history),
             "/" => index(&request, &history, &launch),
             "/.well-known/dnt-policy.txt" => dnt_policy(dnt_compliant),
             hostname => detail(&request, &history, hostname.get(1..).unwrap()),
         };
+        println!("<- {}", &request.url());
         request.respond(response).unwrap();
     }
     println!("got to end of requests apparently. bye!");
