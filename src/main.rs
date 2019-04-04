@@ -268,7 +268,11 @@ fn main() {
     let mut history: Vec<Day> = Vec::new();
     let launch = Local::now();
 
-    for request in server.incoming_requests() {
+    loop {
+        let request = match server.recv() {
+            Ok(r) => r,
+            Err(e) => { println!("error: {}", e); break },
+        };
         println!("-> {}", &request.url());
         let response = match request.url() {
             "/count.gif" => count(&request, &mut history),
@@ -279,5 +283,5 @@ fn main() {
         println!("<- {}", &request.url());
         request.respond(response).unwrap();
     }
-    println!("got to end of requests apparently. bye!");
+    println!("hit a snag apparently. bye!");
 }
