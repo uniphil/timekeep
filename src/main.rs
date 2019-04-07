@@ -7,7 +7,7 @@ use bloom::{BloomFilter, ASMS};
 use chrono::{Date, DateTime, Duration, Local};
 use std::collections::HashMap;
 use std::env;
-use std::io::Cursor;
+use std::io::{ErrorKind as IoErrorKind, Cursor};
 use std::net::IpAddr;
 use tiny_http::{Header, HeaderField, Request, Response, Server};
 use url::Url;
@@ -271,7 +271,14 @@ fn main() {
     loop {
         let request = match server.recv() {
             Ok(r) => r,
-            Err(e) => { println!("error: {}", e); break },
+            Err(e) => {
+                if e.kind() == IoErrorKind::ConnectionAborted {
+                    println!("connection aborted: {:?}", e);
+                    continue
+                }
+                println!("error: {:?}", e);
+                break
+            }
         };
         println!("-> {}", &request.url());
         let response = match request.url() {
