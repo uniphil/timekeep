@@ -261,7 +261,7 @@ fn main() {
         Err(..) => 8000,
     };
     let dnt_compliant = env::var("DNT_COMPLIANT").ok().map_or(false, |c| c == "1");
-    let server = Server::http(("0.0.0.0", port)).unwrap();
+    let mut server = Server::http(("0.0.0.0", port)).unwrap();
     let mut history: Vec<Day> = Vec::new();
     let launch = Local::now();
 
@@ -271,6 +271,9 @@ fn main() {
             Err(e) => {
                 if e.kind() == IoErrorKind::ConnectionAborted {
                     println!("connection aborted: {:?}", e);
+                    // apparently stuff just stops working after the abort
+                    // so... try recreating the server???
+                    server = Server::http(("0.0.0.0", port)).unwrap();
                     continue
                 }
                 println!("error: {:?}", e);
