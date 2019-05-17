@@ -286,7 +286,9 @@ fn main() {
             "/.well-known/dnt-policy.txt" => dnt_policy(dnt_compliant),
             hostname => detail(&request, &history, hostname.get(1..).unwrap()),
         };
-        request.respond(response).unwrap();
+        if let Err(e) = request.respond(response) {
+            println!("response errored: {:?}", e);
+        }
     }
     println!("hit a snag apparently. bye!");
 }
