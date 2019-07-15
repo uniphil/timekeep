@@ -7,7 +7,7 @@ use bloom::{BloomFilter, ASMS};
 use chrono::{Date, DateTime, Duration, Local};
 use std::collections::HashMap;
 use std::env;
-use std::io::Cursor;
+use std::io::{ErrorKind as IoErrorKind, Cursor};
 use std::net::IpAddr;
 use tiny_http::{Header, HeaderField, Request, Response, Server};
 use url::Url;
@@ -261,18 +261,34 @@ fn main() {
         Err(..) => 8000,
     };
     let dnt_compliant = env::var("DNT_COMPLIANT").ok().map_or(false, |c| c == "1");
-    let server = Server::http(("0.0.0.0", port)).unwrap();
+    let mut server = Server::http(("0.0.0.0", port)).unwrap();
     let mut history: Vec<Day> = Vec::new();
     let launch = Local::now();
 
-    for request in server.incoming_requests() {
+    loop {
+        let request = match server.recv() {
+            Ok(r) => r,
+            Err(e) => {
+                if e.kind() == IoErrorKind::ConnectionAborted {
+                    println!("connection aborted: {:?}", e);
+                    // apparently stuff just stops working after the abort
+                    // so... try recreating the server???
+                    server = Server::http(("0.0.0.0", port)).unwrap();
+                    continue
+                }
+                println!("error: {:?}", e);
+                break
+            }
+        };
         let response = match request.url() {
             "/count.gif" => count(&request, &mut history),
             "/" => index(&request, &history, &launch),
             "/.well-known/dnt-policy.txt" => dnt_policy(dnt_compliant),
             hostname => detail(&request, &history, hostname.get(1..).unwrap()),
         };
-        request.respond(response).unwrap();
+        if let Err(e) = request.respond(response) {
+            println!("response errored: {:?}", e);
+        }
     }
-    println!("got to end of requests apparently. bye!");
+    println!("hit a snag apparently. bye!");
 }
