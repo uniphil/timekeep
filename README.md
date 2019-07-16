@@ -39,3 +39,4 @@ other notes:
 
 even more notes:
 - cloudflare used to report ~2000 unique visitors each month for one website I run. The numbers I get from timekeep on the same site are more like ~100 uniques per month. I believe the difference is bots.
+- I have finally enabled the dnt-policy.txt feature on my own install, after scouring my server logging setup to make sure no identifiable information (user-agent string, ip address) stays in any logs longer than 10 days. `relayd` does not seem to log this information, and no requests go to `httpd` (which also doesn't log this information) except the letsencrypt stuff, so I think I did it right. hopefully.

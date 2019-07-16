@@ -78,16 +78,22 @@ pub fn index(
             ));
         }
         out.push_str(&format!(
-            "\n<a href=\"/{0}\">{}</a>\n<strong>\t\tnew\ttotal\tdnt\nmonthly\t\t{}\t{}\t{}</strong>\n",
+            "\n<a href=\"/{0}\">{}</a>\n\
+<strong>\t\t<span style=\"color:#808\">new</span>\t<span style=\"color:#008\">total</span>\t<span style=\"color:#080\">dnt</span>\n\
+<details>
+<summary>monthly\t<span style=\"color:#808\">{}</span>\t<span style=\"color:#008\">{}</span>\t<span style=\"color:#080\">{}</span></strong>\n</summary>",
             host, total_new, total_unique, total_dnt
         ));
         out.push_str(&timeline);
-        out.push_str(&format!(
-            "<svg width='{0}' height='{1}' viewbox='0 0 {0} {1}'>
+        out.push_str("</details>");
+        out.push_str(&format!("
+<svg width='{0}' height='{1}' viewbox='0 0 {0} {1}'>
                 <path fill='none' stroke='#808' stroke-width='2px' d='{2}' />
                 <path fill='none' stroke='#008' stroke-width='2px' d='{3}' />
                 <path fill='none' stroke='#080' stroke-width='2px' d='{4}' />
-            </svg>", PLOT_WIDTH, PLOT_HEIGHT, d_new, d_unique, d_dnt));
+                <rect x='{6}px' y='0' width='136px' height='16px' fill='#ffffffa0' />
+                <text x='{6}px' y='16px' size='16px'>daily max: {5}</text>
+            </svg>", PLOT_WIDTH, PLOT_HEIGHT, d_new, d_unique, d_dnt, top, PLOT_WIDTH - 136.));
     }
     out.push_str(&format!("\n\nlast restart: {}", launch));
     out.push_str("</pre>");
