@@ -5,6 +5,9 @@ use Day;
 use chrono::{Date, DateTime, Local};
 use tiny_http::{Header, Request, Response,};
 
+const PLOT_HEIGHT: f64 = 120.;
+const PLOT_WIDTH: f64 = 360.;
+
 pub fn index(
     _request: &Request,
     history: &[Day],
@@ -31,18 +34,32 @@ pub fn index(
     hosts.sort_by_key(|&(h, _)| h);
     for (host, info) in hosts {
         let mut total_new = 0;
+        let mut d_new = format!("M 0 {}", PLOT_HEIGHT);
         let mut total_unique = 0;
+        let mut d_unique = format!("M 0 {}", PLOT_HEIGHT);
         let mut total_dnt = 0;
+        let mut d_dnt = format!("M 0 {}", PLOT_HEIGHT);
         let mut timeline = "".to_string();
 
         let mut info = info.iter().collect::<Vec<_>>();
         info.sort_by_key(|&(date, _)| date);
         info.reverse();
 
+        let top = {
+            let mut m = 0;
+            for (_, (v, u, d)) in &info { m = m.max(*v).max(*u).max(*d) }
+            m
+        } as f64;
+
+        let today = Local::today();
         for (date, (new_visitors, unique_visitors, dnt_impressions)) in info {
+            let i = 30 - (today - **date).num_days();
             total_new += new_visitors;
+            d_new.push_str(&format!(" L {} {}", i as f64 / 30. * PLOT_WIDTH, PLOT_HEIGHT - *new_visitors as f64 / top * PLOT_HEIGHT));
             total_unique += unique_visitors;
+            d_unique.push_str(&format!(" L {} {}", i as f64 / 30. * PLOT_WIDTH, PLOT_HEIGHT - *unique_visitors as f64 / top * PLOT_HEIGHT));
             total_dnt += dnt_impressions;
+            d_dnt.push_str(&format!(" L {} {}", i as f64 / 30. * PLOT_WIDTH, PLOT_HEIGHT - *dnt_impressions as f64 / top * PLOT_HEIGHT));
             timeline.push_str(&format!(
                 "{}\t{}\t{}\t{}\n",
                 date.format("%F"),
@@ -56,6 +73,12 @@ pub fn index(
             host, total_new, total_unique, total_dnt
         ));
         out.push_str(&timeline);
+        out.push_str(&format!(
+            "<svg width='{0}' height='{1}' viewbox='0 0 {0} {1}'>
+                <path fill='none' stroke='#808' stroke-width='2px' d='{2}' />
+                <path fill='none' stroke='#008' stroke-width='2px' d='{3}' />
+                <path fill='none' stroke='#080' stroke-width='2px' d='{4}' />
+            </svg>", PLOT_WIDTH, PLOT_HEIGHT, d_new, d_unique, d_dnt));
     }
     out.push_str(&format!("\n\nlast restart: {}", launch));
     out.push_str("</pre>");
