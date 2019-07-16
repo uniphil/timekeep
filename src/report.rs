@@ -11,9 +11,7 @@ pub fn index(
     launch: &DateTime<Local>,
 ) -> Response<Cursor<Vec<u8>>> {
     type Detail<'a> = HashMap<&'a Date<Local>, (u32, u32, u32)>;
-    let mut out =
-        "<!doctype html><pre>about some hosts:\ndate\tnew folks\tdaily visits\tdnt impressions\n"
-            .to_string();
+    let mut out = "<!doctype html><pre>".to_string();
     let mut hosts: HashMap<String, Detail> = HashMap::new();
     for day in history {
         let date = &day.date;
@@ -54,7 +52,7 @@ pub fn index(
             ));
         }
         out.push_str(&format!(
-            "\n<a href=\"/{0}\">{}</a>\t{}\t{}\t{}\n",
+            "\n<a href=\"/{0}\">{}</a>\n<strong>\t\tnew\ttotal\tdnt\nmonthly\t\t{}\t{}\t{}</strong>\n",
             host, total_new, total_unique, total_dnt
         ));
         out.push_str(&timeline);
@@ -67,7 +65,7 @@ pub fn index(
 
 
 pub fn detail(_request: &Request, history: &[Day], hostname: &str) -> Response<Cursor<Vec<u8>>> {
-    let mut out = format!("<!doctype html><pre>recent memories of <a href=\"https://{0}/\" target=\"_blank\">{0} ⎘</a>:\n", hostname);
+    let mut out = format!("<!doctype html><pre><a href=\"https://{0}/\" target=\"_blank\">{0} ⎘</a>\n\n", hostname);
     let mut info = history
         .iter()
         .filter_map(|day| day.hosts.get(hostname).map(|h| (day.date, h)))
@@ -81,7 +79,7 @@ pub fn detail(_request: &Request, history: &[Day], hostname: &str) -> Response<C
     let mut info = info.collect::<Vec<_>>();
     info.sort_by_key(|&(d, _)| d);
     info.reverse();
-    out.push_str("date\timpressions\tdnt\tvisitors\tnew folks\n");
+    out.push_str("<strong>\t\tviews\tdnt\tpeople\tnew</strong>\n");
     for (date, h) in info {
         let mut day_visits = 0;
         for (path, count) in &h.paths {
@@ -100,7 +98,7 @@ pub fn detail(_request: &Request, history: &[Day], hostname: &str) -> Response<C
     let mut paths = paths.iter().collect::<Vec<_>>();
     paths.sort_by_key(|&(path, count)| (count, path));
     paths.reverse();
-    out.push_str("\nimpressions in the last 30 days by path:\n");
+    out.push_str("\n<strong>by path:</strong>\n");
     for (path, path_count) in paths {
         out.push_str(&format!(
             "{}\t<a href=\"https://{2}{1}\" target=\"_blank\">{1} ⎘</a>\n",
