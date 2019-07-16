@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::io::Cursor;
 
 use Day;
-use chrono::{Date, DateTime, Local};
+use chrono::{Date, DateTime, Duration, Local};
 use tiny_http::{Header, Request, Response,};
 
 const PLOT_HEIGHT: f64 = 120.;
@@ -34,11 +34,11 @@ pub fn index(
     hosts.sort_by_key(|&(h, _)| h);
     for (host, info) in hosts {
         let mut total_new = 0;
-        let mut d_new = format!("M 0 {}", PLOT_HEIGHT);
+        let mut d_new = format!("M {} {}", 0, PLOT_HEIGHT);
         let mut total_unique = 0;
-        let mut d_unique = format!("M 0 {}", PLOT_HEIGHT);
+        let mut d_unique = format!("M {} {}", 0, PLOT_HEIGHT);
         let mut total_dnt = 0;
-        let mut d_dnt = format!("M 0 {}", PLOT_HEIGHT);
+        let mut d_dnt = format!("M {} {}", 0, PLOT_HEIGHT);
         let mut timeline = "".to_string();
 
         let mut info = info.iter().collect::<Vec<_>>();
@@ -52,14 +52,23 @@ pub fn index(
         } as f64;
 
         let today = Local::today();
+        for i in 0..30 {
+            let day = today - Duration::days(30 - i - 1);
+            let (new, total, dnt) = info
+                .iter()
+                .find(|(&&d, _)| d == day)
+                .map(|(_, &data)| data)
+                .unwrap_or((0, 0, 0));
+
+            d_new.push_str(&format!(" L {} {}", i as f64 / 30. * PLOT_WIDTH, PLOT_HEIGHT - new as f64 / top * PLOT_HEIGHT));
+            d_unique.push_str(&format!(" L {} {}", i as f64 / 30. * PLOT_WIDTH, PLOT_HEIGHT - total as f64 / top * PLOT_HEIGHT));
+            d_dnt.push_str(&format!(" L {} {}", i as f64 / 30. * PLOT_WIDTH, PLOT_HEIGHT - dnt as f64 / top * PLOT_HEIGHT));
+        }
+
         for (date, (new_visitors, unique_visitors, dnt_impressions)) in info {
-            let i = 30 - (today - **date).num_days();
             total_new += new_visitors;
-            d_new.push_str(&format!(" L {} {}", i as f64 / 30. * PLOT_WIDTH, PLOT_HEIGHT - *new_visitors as f64 / top * PLOT_HEIGHT));
             total_unique += unique_visitors;
-            d_unique.push_str(&format!(" L {} {}", i as f64 / 30. * PLOT_WIDTH, PLOT_HEIGHT - *unique_visitors as f64 / top * PLOT_HEIGHT));
             total_dnt += dnt_impressions;
-            d_dnt.push_str(&format!(" L {} {}", i as f64 / 30. * PLOT_WIDTH, PLOT_HEIGHT - *dnt_impressions as f64 / top * PLOT_HEIGHT));
             timeline.push_str(&format!(
                 "{}\t{}\t{}\t{}\n",
                 date.format("%F"),
