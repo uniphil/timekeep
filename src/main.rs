@@ -6,7 +6,7 @@ extern crate url;
 mod count;
 mod report;
 
-use count::count;
+use count::{count, mock};
 use bloom::BloomFilter;
 use chrono::{Date, Local};
 use report::{detail, dnt_policy, index};
@@ -36,10 +36,15 @@ fn main() {
     let dnt_compliant = env::var("DNT_COMPLIANT")
         .ok()
         .map_or(false, |c| c == "1");
+    let debug_data = env::var("DEBUG_DATA").is_ok();
 
     let mut server = Server::http(("0.0.0.0", port)).unwrap();
     let mut history: Vec<Day> = Vec::new();
     let launch = Local::now();
+
+    if debug_data {
+        mock(&mut history);
+    }
 
     loop {
         let request = match server.recv() {

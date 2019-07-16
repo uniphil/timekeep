@@ -1,6 +1,6 @@
-use {Day, Host, Local};
+use {Day, Host};
 use bloom::{ASMS, BloomFilter};
-use chrono::Duration;
+use chrono::{Date, Duration, Local};
 use std::collections::HashMap;
 use std::io::Cursor;
 use std::net::IpAddr;
@@ -58,24 +58,9 @@ fn trackable(request: &Request) -> Option<(Option<IpAddr>, String, String)> {
     Some((addr, hostname.to_string(), path.to_string()))
 }
 
-pub fn count(request: &Request, mut history: &mut Vec<Day>) -> Response<Cursor<Vec<u8>>> {
-    let response = Response::from_data(HELLO_PIXEL.to_vec())
-        .with_header(Header::from_bytes(&b"Content-Type"[..], &b"image/gif"[..]).unwrap())
-        .with_header(
-            Header::from_bytes(
-                &b"Cache-Control"[..],
-                &b"no-store, no-cache, must-revalidate, max-age=0"[..],
-            )
-            .unwrap(),
-        )
-        .with_header(Header::from_bytes(&b"Pragma"[..], &b"no-cache"[..]).unwrap());
-    let (ip, hostname, path) = match trackable(&request) {
-        Some(x) => x,
-        None => return response.with_status_code(400),
-    };
-
-    let today_date = Local::today();
-
+pub fn record(mut history: &mut Vec<Day>,
+              (ip, hostname, path): (Option<IpAddr>, String, String),
+              date: Date<Local>) {
     let seen_before = ip.map_or(false, |addr| {
         history.iter().any(|day| {
             day.hosts
@@ -84,17 +69,17 @@ pub fn count(request: &Request, mut history: &mut Vec<Day>) -> Response<Cursor<V
         })
     });
 
-    if history.iter().find(|day| day.date == today_date).is_none() {
+    if history.iter().find(|day| day.date == date).is_none() {
         cleanup(&mut history);
         let day = Day {
-            date: today_date,
+            date: date,
             hosts: HashMap::new(),
         };
         history.push(day);
     }
     let today = history
         .iter_mut()
-        .find(|day| day.date == Local::today())
+        .find(|day| day.date == date)
         .unwrap();
 
     let host = today.hosts.entry(hostname).or_insert(Host {
@@ -118,6 +103,38 @@ pub fn count(request: &Request, mut history: &mut Vec<Day>) -> Response<Cursor<V
     }
 
     *host.paths.entry(path).or_insert(0) += 1;
+}
+
+pub fn count(request: &Request, history: &mut Vec<Day>) -> Response<Cursor<Vec<u8>>> {
+    let response = Response::from_data(HELLO_PIXEL.to_vec())
+        .with_header(Header::from_bytes(&b"Content-Type"[..], &b"image/gif"[..]).unwrap())
+        .with_header(
+            Header::from_bytes(
+                &b"Cache-Control"[..],
+                &b"no-store, no-cache, must-revalidate, max-age=0"[..],
+            )
+            .unwrap(),
+        )
+        .with_header(Header::from_bytes(&b"Pragma"[..], &b"no-cache"[..]).unwrap());
+
+    let view = match trackable(&request) {
+        Some(x) => x,
+        None => return response.with_status_code(400),
+    };
+    record(history, view, Local::today());
 
     response
+}
+
+pub fn mock(history: &mut Vec<Day>) {
+    let today_date = Local::today();
+    for day_count in 0..31 {
+        let day = today_date - Duration::days(day_count);
+        let visitors = ((day_count as f64).sin() * 100.) as i64 + 100;
+        for v in 0..visitors {
+            let ip = format!("0.0.0.{}", (v * day_count % 256)).parse();
+            let path = format!("/hello-{}", (v / 20) % 12 + (day_count / 2) % 5);
+            record(history, (ip.ok(), "hello".to_string(), path), day);
+        }
+    }
 }
